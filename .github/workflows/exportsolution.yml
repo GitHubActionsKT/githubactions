@@ -31,4 +31,59 @@ jobs:
           app-id: ${{env.CLIENT_ID}}
           client-secret: ${{env.CLIENT_SECRET}}
           tenant-id: ${{env.TENANT_ID}}
+          
+  ExportManaged-From-DEV:
+     runs-on: windows-latest
+     needs: [Connection]
+     env:
+        RUNNER_DEBUG: 1
+     steps:
+        - uses: actions/checkout@v2
+          with:
+            lfs: true
+        - name: Export solution
+          uses: microsoft/powerplatform-actions/export-solution@v0
+          with:
+            environment-url: "https://goj-d-osh.crm4.dynamics.com"
+            app-id: ${{env.CLIENT_ID}}
+            client-secret: ${{env.CLIENT_SECRET}}
+            tenant-id: ${{env.TENANT_ID}}
+            managed: true
+            solution-name: ${{ github.event.inputs.SolutionName }}
+            solution-output-file:  ${{ github.event.inputs.SolutionExportedFolder }}/${{ github.event.inputs.SolutionName }}.zip
+        - name: Check Solution ${{matrix.solution}}
+          uses: microsoft/powerplatform-actions/check-solution@v0
+          with:
+            environment-url: "https://goj-d-osh.crm4.dynamics.com"
+            app-id: ${{env.CLIENT_ID}}
+            client-secret: ${{env.CLIENT_SECRET}}
+            tenant-id: ${{env.TENANT_ID}}
+            path: ${{ github.event.inputs.SolutionExportedFolder }}/${{ github.event.inputs.SolutionName }}.zip
+        - name: Upload the ready to ship solution to GH artifact store
+          uses: actions/upload-artifact@v2
+          with:
+            name: ManagedSolutions
+            path:  ${{ github.event.inputs.SolutionExportedFolder }}/${{ github.event.inputs.SolutionName }}.zip 
+          
+  PushToRepo:
+    needs: [ExportManaged-From-DEV]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          lfs: true 
+      - name: Fetch the ready to ship solution from GH artifact store
+        uses: actions/download-artifact@v2
+        with:
+          name: ManagedSolutions
+          path: drop/managed/
+      - name: Push the Solutions to Repo
+        run: |
+          git config --global user.name 'GitHub Workflow'
+          git config --global user.email 'githubworkflow@github.com'
+          git add .
+          git status
+          git commit -m "adding solutions in Repo"
+          git push origin main
+
     
